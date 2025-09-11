@@ -24,7 +24,7 @@ class Exporter:
     def writeDAT(context, path, source_dat=None):
         """
         Export function for GameCube .dat models.
-        
+
         If source_dat is provided, we load it and patch only selected sections.
         Otherwise, we build new nodes entirely.
         """
@@ -36,25 +36,24 @@ class Exporter:
             print("No base .dat provided, starting from scratch.")
             root_nodes = []
 
-        # Collect nodes (start with materials & textures)
+        # Collect new nodes
         material_nodes = Exporter._collect_material_nodes()
         texture_nodes = Exporter._collect_texture_nodes()
-
-        # Stubs: future implementation
         mesh_nodes = Exporter._collect_mesh_nodes()
         joint_nodes = Exporter._collect_armature_nodes()
         anim_nodes = Exporter._collect_animation_nodes()
 
-        # Merge new nodes into root node list
+        # Replace nodes of these types in root_nodes
         root_nodes = Exporter._replace_nodes(
             root_nodes,
             material_nodes + texture_nodes + mesh_nodes + joint_nodes + anim_nodes
         )
 
-        # Build and write output DAT file
+        # Write output file
         builder = DATBuilder(path, root_nodes)
         builder.build()
         print(f"Export complete: {path}")
+        return {'FINISHED'}
 
     # ---------- MATERIALS ----------
     @staticmethod
@@ -62,8 +61,8 @@ class Exporter:
         """Convert Blender materials to MaterialNode objects."""
         material_nodes = []
         for mat in bpy.data.materials:
-            mat_node = MaterialObject()
-            # TODO: Populate mat_node fields
+            mat_node = MaterialObject(address=None, blender_obj=mat)
+            # TODO: populate mat_node fields from Blender material properties
             # mat_node.diffuse_color = mat.diffuse_color[:3]
             # mat_node.specular_color = mat.specular_color[:3]
             # mat_node.alpha = 1.0 if mat.blend_method == 'OPAQUE' else mat.alpha_threshold
@@ -76,8 +75,8 @@ class Exporter:
         """Convert Blender textures/images to TextureNode objects."""
         texture_nodes = []
         for img in bpy.data.images:
-            tex_node = Texture()
-            # TODO: Populate texture data
+            tex_node = Texture(address=None, blender_obj=img)
+            # TODO: populate tex_node fields
             # tex_node.path = img.filepath_from_user()
             # tex_node.width, tex_node.height = img.size
             # tex_node.format = Exporter._deduce_image_format(img)
@@ -91,12 +90,11 @@ class Exporter:
         mesh_nodes = []
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
-                mesh_node = Mesh()
-                # TODO: Populate mesh_node
+                mesh_node = Mesh(address=None, blender_obj=obj)
+                # TODO: populate mesh_node fields
                 # mesh_node.vertices = Exporter._extract_vertices(obj)
                 # mesh_node.normals = Exporter._extract_normals(obj)
                 # mesh_node.uvs = Exporter._extract_uvs(obj)
-                # mesh_node.material_index = obj.active_material_index
                 mesh_nodes.append(mesh_node)
         return mesh_nodes
 
@@ -108,8 +106,8 @@ class Exporter:
         for obj in bpy.data.objects:
             if obj.type == 'ARMATURE':
                 for bone in obj.data.bones:
-                    joint_node = Joint()
-                    # TODO: Populate joint_node
+                    joint_node = Joint(address=None, blender_obj=bone)
+                    # TODO: populate joint_node fields
                     # joint_node.name = bone.name
                     # joint_node.head = bone.head_local
                     # joint_node.tail = bone.tail_local
@@ -122,8 +120,8 @@ class Exporter:
         """Convert Blender actions/shape keys to AnimationNode objects."""
         anim_nodes = []
         for action in bpy.data.actions:
-            anim_node = Animation()
-            # TODO: Populate anim_node
+            anim_node = Animation(address=None, blender_obj=action)
+            # TODO: populate anim_node fields
             # anim_node.name = action.name
             # anim_node.keyframes = Exporter._extract_keyframes(action)
             anim_nodes.append(anim_node)
@@ -146,23 +144,22 @@ class Exporter:
     def _deduce_image_format(img):
         """Simple helper to guess image format from file extension."""
         ext = os.path.splitext(img.filepath)[-1].lower()
-        if ext in (".png", ".tga"): return "RGBA8"
-        if ext in (".jpg", ".jpeg"): return "RGB8"
+        if ext in (".png", ".tga"):
+            return "RGBA8"
+        if ext in (".jpg", ".jpeg"):
+            return "RGB8"
         return "UNKNOWN"
 
     @staticmethod
     def _extract_vertices(obj):
-        """Helper: return list of vertex positions from Blender mesh."""
         return [v.co[:] for v in obj.data.vertices]
 
     @staticmethod
     def _extract_normals(obj):
-        """Helper: return list of vertex normals from Blender mesh."""
         return [v.normal[:] for v in obj.data.vertices]
 
     @staticmethod
     def _extract_uvs(obj):
-        """Helper: return list of UV coordinates from Blender mesh."""
         if obj.data.uv_layers.active:
             return [loop.uv[:] for loop in obj.data.uv_layers.active.data]
         return []
