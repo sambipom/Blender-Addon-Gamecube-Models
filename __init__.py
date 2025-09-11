@@ -15,20 +15,18 @@ bl_info = {
 if "bpy" in locals():
     pass
 
-from bpy_extras.io_utils import (
-        ImportHelper,
-        ExportHelper,
-        axis_conversion,
-)
+import bpy
+import os
+from bpy_extras.io_utils import ImportHelper, ExportHelper, axis_conversion
 
-from .exporter import *
-from .importer import *
+from .exporter import exporter
+from .importer import importer
 
 
 # This class declares global properties which blender uses to add toggles and fields to the file open browser
 # allowing more options to be selected along with the filepath being opened.
 # When a file is selected the execute() function runs.
-class ImportHSD(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+class ImportHSD(bpy.types.Operator, ImportHelper):
     """Load a DAT model"""
     bl_idname = "import_model.dat"
     bl_label = "Import DAT"
@@ -120,4 +118,5 @@ def unregister():
 # This function is called when the addon is run as a script from within blender's scripting window
 if __name__ == "__main__":
     register()
+
 
