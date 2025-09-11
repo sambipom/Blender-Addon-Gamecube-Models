@@ -2,6 +2,7 @@
 
 import sys
 import bpy
+import bpy_extras.io_utils
 from importer.importer import Importer
 
 # This function is called when the addon is run through the command line.
