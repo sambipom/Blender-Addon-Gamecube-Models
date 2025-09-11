@@ -61,20 +61,32 @@ class ImportHSD(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
 
 class ExportHSD(bpy.types.Operator, ExportHelper):
+    """Export current scene to Gamecube .dat format"""
     bl_idname = "export_scene.hsd"
-    bl_label = "Export HSD"
+    bl_label = "Export HSD (.dat)"
+
+    filename_ext = ".dat"
+    filter_glob: bpy.props.StringProperty(default="*.dat", options={'HIDDEN'})
+
+    source_dat: bpy.props.StringProperty(
+        name="Base DAT",
+        description="Optional base .dat to patch instead of rebuilding",
+        default="",
+        subtype='FILE_PATH'
+    )
 
     @classmethod
     def poll(cls, context):
-        return context.active_object is not None
+        # Allow export even if no object is selected (e.g. patch materials only)
+        return True
 
     def execute(self, context):
-        status = Exporter.writeDAT(context, path)
-        if not 'FINISHED' in status:
-            return status
-
-        return {'FINISHED'}
-
+        try:
+            exporter.Exporter.writeDAT(context, self.filepath, source_dat=self.source_dat)
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Export failed: {str(e)}")
+            return {'CANCELLED'}
 
 def menu_func_import(self, context):
     self.layout.operator(ImportHSD.bl_idname, text="Gamecube Dat Model (.dat)")
@@ -108,3 +120,4 @@ def unregister():
 # This function is called when the addon is run as a script from within blender's scripting window
 if __name__ == "__main__":
     register()
+
