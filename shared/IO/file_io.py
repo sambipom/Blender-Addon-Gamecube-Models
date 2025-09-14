@@ -115,8 +115,10 @@ class BinaryWriter:
             if type == 'void':
                 return
             elif type == 'string':
-                # TODO: confirm if this includes null terminator byte
-                self.file.write(bytes(data, 'utf-8'))
+                encoded = bytes(data, 'utf-8')
+                # Strings in DAT files are null-terminated, so ensure the
+                # terminator byte is written alongside the encoded data.
+                self.file.write(encoded + b'\x00')
             elif type == 'vec3':
                 for i in range(3):
                     self.file.write(struct.pack('>f', data[i]))
