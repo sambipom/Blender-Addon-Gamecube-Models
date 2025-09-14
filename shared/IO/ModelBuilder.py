@@ -4,8 +4,42 @@ import math
 from ..Constants import *
 from ..Errors import *
 from ..Nodes import *
+from .DAT_io import DATParser
 
 class ModelBuilder(object):
+
+    @staticmethod
+    def build_from_file(filepath, options=None):
+        """Parse a DAT file and return its root nodes.
+
+        Parameters
+        ----------
+        filepath: str
+            Path to the DAT file to load.
+        options: dict | None
+            Parsing options passed to :class:`DATParser`. If not provided a
+            reasonable set of defaults is used.
+
+        Returns
+        -------
+        list[Node]
+            List of root node objects extracted from the DAT file.
+        """
+
+        if options is None:
+            options = {
+                "ik_hack": True,
+                "verbose": False,
+                "print_tree": False,
+                "max_frame": 0,
+                "section_names": [],
+            }
+
+        parser = DATParser(filepath, options)
+        parser.parseSections()
+        parser.close()
+
+        return [section.root_node for section in parser.sections]
 
     def __init__(self, context, sections, options):
         # Settings chosen for the parser
