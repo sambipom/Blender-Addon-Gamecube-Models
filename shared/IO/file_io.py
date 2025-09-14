@@ -87,7 +87,7 @@ class BinaryWriter:
         self.file = open(filepath, 'wb+')
 
     def currentAddress(self):
-    	return self.file.tell()
+        return self.file.tell()
 
     def seek(self, offset, whence='start'):
         """
@@ -109,7 +109,7 @@ class BinaryWriter:
         relative to `whence` ('start' or 'current')
         """
         if offset != None:
-        	self.seek(offset, whence)
+            self.seek(offset, whence)
         
         if is_primitive_type(type):
             if type == 'void':
