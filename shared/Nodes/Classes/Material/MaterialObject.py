@@ -75,15 +75,23 @@ class MaterialObject(Node):
                 color = nodes.new('ShaderNodeRGB')
                 color.outputs[0].default_value[:] = diffuse_color
             else:
-                # Toon not supported. 
-                # TODO: confirm if any models use Toon textures
-                # if toon:
-                #    color = nodes.new('ShaderNodeTexImage')
-                #    color.image = toon.image_data
-                #    #TODO: add the proper texture mapping
-                # else:
-                color = nodes.new('ShaderNodeAttribute')
-                color.attribute_name = 'color_0'
+                toon_texture = None
+                if (self.render_mode & RENDER_TOON) and self.render_data and self.render_data.toon_texture:
+                    toon_texture = self.render_data.toon_texture
+                    toon_texture.build(builder)
+                    toon = nodes.new('ShaderNodeTexImage')
+                    toon.image = toon_texture.image_data
+                    toon.name = "toon"
+                    toon.interpolation = 'Linear'
+                    mapping = nodes.new('ShaderNodeMapping')
+                    mapping.vector_type = 'POINT'
+                    uv = nodes.new('ShaderNodeTexCoord')
+                    links.new(uv.outputs[1], mapping.inputs[0])
+                    links.new(mapping.outputs[0], toon.inputs[0])
+                    color = toon
+                else:
+                    color = nodes.new('ShaderNodeAttribute')
+                    color.attribute_name = 'color_0'
 
                 if not diffuse_flags == RENDER_DIFFUSE_VTX:
                     diffuse = nodes.new('ShaderNodeRGB')
@@ -136,7 +144,7 @@ class MaterialObject(Node):
             # Blender UV coordinates are relative to the bottom left so we need to account for that
             mapping.inputs[1].default_value[1] = 1 - (texture.scale[1] * (texture.translation[1] + 1))
 
-            #TODO: Is this correct?
+            # Reflection coordinates need an additional 90 degree rotation on X
             if (texture.flags & TEX_COORD_MASK) == TEX_COORD_REFLECTION:
                 mapping.inputs[2].default_value[0] -= math.pi/2
 
@@ -236,7 +244,35 @@ class MaterialObject(Node):
         if self.pixel_engine_data:
             pixel_engine_data = self.pixel_engine_data
             # PE (Pixel Engine) parameters can be given manually in this struct
-            # TODO: implement other custom PE stuff
+            if pixel_engine_data.destination_alpha:
+                dst = nodes.new('ShaderNodeValue')
+                dst.outputs[0].default_value = pixel_engine_data.destination_alpha / 255
+                last_alpha = dst.outputs[0]
+
+            if pixel_engine_data.alpha_component_0 or pixel_engine_data.alpha_component_1:
+                ref0 = pixel_engine_data.reference_0 / 255
+                ref1 = pixel_engine_data.reference_1 / 255
+                cmp0 = nodes.new('ShaderNodeMath')
+                cmp0.operation = 'GREATER_THAN'
+                links.new(last_alpha, cmp0.inputs[0])
+                cmp0.inputs[1].default_value = ref0
+                cmp1 = nodes.new('ShaderNodeMath')
+                cmp1.operation = 'GREATER_THAN'
+                links.new(last_alpha, cmp1.inputs[0])
+                cmp1.inputs[1].default_value = ref1
+                if pixel_engine_data.alpha_op == GX_AOP_AND:
+                    mix = nodes.new('ShaderNodeMath')
+                    mix.operation = 'MULTIPLY'
+                    links.new(cmp0.outputs[0], mix.inputs[0])
+                    links.new(cmp1.outputs[0], mix.inputs[1])
+                    last_alpha = mix.outputs[0]
+                elif pixel_engine_data.alpha_op == GX_AOP_OR:
+                    mix = nodes.new('ShaderNodeMath')
+                    mix.operation = 'MAXIMUM'
+                    links.new(cmp0.outputs[0], mix.inputs[0])
+                    links.new(cmp1.outputs[0], mix.inputs[1])
+                    last_alpha = mix.outputs[0]
+
             # Blend mode
             # HSD_StateSetBlendMode    ((GXBlendMode) pe->type,
             #         (GXBlendFactor) pixel_engine_data->source_factor,
@@ -385,10 +421,12 @@ class MaterialObject(Node):
             else:
                 raise PixelEngineUnknownBlendModeError(pixel_engine_data.type)
         else:
-            # TODO: use the presets from the rendermode flags
+            # Use the presets from the rendermode flags
             if self.render_mode & RENDER_XLU:
                 transparent_shader = True
                 blender_material.blend_method = 'HASHED'
+            elif self.render_mode & RENDER_TOON:
+                alt_blend_mode = 'ADD'
 
         # Output shader
         shader = nodes.new('ShaderNodeBsdfPrincipled')

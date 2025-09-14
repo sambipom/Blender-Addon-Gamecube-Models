@@ -392,3 +392,9 @@ GX_LO_INVCOPY = 0xC
 GX_LO_INVOR   = 0xD
 GX_LO_NAND    = 0xE
 GX_LO_SET     = 0xF
+
+#GXAlphaOp
+GX_AOP_AND  = 0x0
+GX_AOP_OR   = 0x1
+GX_AOP_XOR  = 0x2
+GX_AOP_XNOR = 0x3
