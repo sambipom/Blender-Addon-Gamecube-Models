@@ -263,8 +263,11 @@ class DATBuilder(BinaryWriter):
 			self.node_list.extend(root_node.toList()[::-1])
 
 
-	def _currentRelativeAddress(self, relative_to_header=True):
-		return super().currentAddress() - (DATBuilder.DAT_header_length if relative_to_header else 0)
+        def _currentRelativeAddress(self, relative_to_header=True):
+                return super().currentAddress() - self._startOffset(relative_to_header)
+
+        def _startOffset(self, relative_to_header=True):
+                return (DATBuilder.DAT_header_length if relative_to_header else 0)
 
 	def build(self):
 		# Write primitive pointers for each node
@@ -272,24 +275,24 @@ class DATBuilder(BinaryWriter):
 			node.writePrimitivePointers(self)
 
 		# Allocate address for each node
-		self.seek(0, 'end')
-		for node in self.node_list:
-			# TODO: Look at EnvelopeList & other nodes that need special attention
-			if len(node.fields) > 0:
-				first_field = node.fields[0]
-				alignment = get_alignment_at_offset(first_field[1], self._currentRelativeAddress())
-				for i in range(alignment):
-					_ = self.write(0, 'uchar')
+                self.seek(0, 'end')
+                for node in self.node_list:
+                        if len(node.fields) == 0:
+                                continue
+                        first_field = node.fields[0]
+                        alignment = get_alignment_at_offset(first_field[1], self._currentRelativeAddress())
+                        for i in range(alignment):
+                                _ = self.write(0, 'uchar')
 
-				node.address = self._currentRelativeAddress() + node.allocationOffset()
-				node_length = node.allocationSize()
-				for i in range(node_length):
-					_ = self.write(0, 'uchar')
+                        node.address = self._currentRelativeAddress() + node.allocationOffset()
+                        node_length = node.allocationSize()
+                        for i in range(node_length):
+                                _ = self.write(0, 'uchar')
 
 		# Tidy up alignment and record data section size
 		while (self._currentRelativeAddress()) % 16 != 0:
 			_ = self.write(0, 'uchar')
-		data_section_length = self._currentRelativeAddress()
+                data_size = self._currentRelativeAddress()
 
 		# Write each node
 		for node in self.node_list:
@@ -323,25 +326,24 @@ class DATBuilder(BinaryWriter):
 			_ = self.write(0, 'uchar')
 		file_size = self._currentRelativeAddress()
 		relocations_count = len(self.relocations)
-		self.write(file_size, 'uint', 0, False)
-		# TODO: data_size is never declared
-		# self.write(data_size, 'uint', 4, False)
-		self.write(relocations_count, 'uint', 8, False)
-		self.write(len(self.root_nodes), 'uint', 12, False)
+                self.write(file_size, 'uint', 0, False)
+                self.write(data_size, 'uint', 4, False)
+                self.write(relocations_count, 'uint', 8, False)
+                self.write(len(self.root_nodes), 'uint', 12, False)
 
 	# If no address is specified then append to end of file
 	def write(self, value, field_type, address=None, relative_to_header=True, whence='start'):
-		if address is not None:
-			# TODO: DATBuilder doesn't define _startOffset
-			address = address + (self.DAT_header_length if relative_to_header else 0)
-			self.seek(address)
-		else:
-			self.seek(0, 'end')
+                if address is not None:
+                        address = address + self._startOffset(relative_to_header)
+                        self.seek(address)
+                else:
+                        self.seek(0, 'end')
+                        address = self.currentAddress()
 
-		padding = get_alignment_at_offset(field_type, self.currentAddress())
-		address += padding
-		for i in range(padding):
-			_ = self.write(0, 'uchar')
+                padding = get_alignment_at_offset(field_type, self.currentAddress())
+                address += padding
+                for i in range(padding):
+                        _ = self.write(0, 'uchar')
 
 		if isBracketedType(field_type):
 			return self.write(value, getBracketedSubType(field_type), address, relative_to_header, whence)
