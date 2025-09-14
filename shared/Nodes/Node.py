@@ -1,4 +1,5 @@
 from .NodeTypes import get_type_length
+from collections import deque
 
 
 # Abstract node class
@@ -91,8 +92,9 @@ class Node(object):
             return
         builder.writeNode(self, relative_to_header=True)
 
-    # TODO: confirm if the convention is depth first or breadth first write.
-    # Converts the node tree into an list of every node present in the tree.
+    # Official DAT files write nodes in breadth-first order. Generate a list of
+    # all nodes in the tree using a breadth-first traversal so the write order
+    # matches this convention.
     def toList(self):
         # Prevent infinite cycles
         if self.is_being_listed:
@@ -100,38 +102,37 @@ class Node(object):
 
         self.is_being_listed = True
 
-        node_list = [self]
+        node_list = []
+        queue = deque([self])
+        visited = set()
 
-        def isNodeAlreadyInList(new_node):
-            for node in node_list:
-                if new_node.address == node.address:
-                    return True
-            return False
+        while queue:
+            node = queue.popleft()
+            key = node.address if node.address is not None else id(node)
+            if key in visited:
+                continue
+            visited.add(key)
+            node_list.append(node)
 
-        def addToListUniquely(nodes):
-            for node in nodes:
-                if not isNodeAlreadyInList(node):
-                    node_list.append(node)
+            # Enqueue any child nodes. If a field is a list then enqueue each
+            # node in that list.
+            for field in node.fields:
+                field_name = field[0]
+                value = getattr(node, field_name)
 
-        # Recursively get the lists for any sub nodes. If a field is a list then
-        # get the node lists of each node in that list.
-        for field in self.fields:
-            field_name = field[0]
-            value = getattr(self, field_name)
+                if isinstance(value, Node):
+                    queue.append(value)
 
-            if isinstance(value, Node):
-                addToListUniquely(value.toList())
+                elif isinstance(value, list):
+                    for element in value:
+                        if isinstance(element, Node):
+                            queue.append(element)
 
-            elif isinstance(value, list):
-                for element in value:
-                    if isinstance(element, Node):
-                        addToListUniquely(element.toList())
-
-                    elif isinstance(element, list):
-                        # We should never have deeper than a 2-dimensional list
-                        for sub_element in element:
-                            if isinstance(sub_element, Node):
-                                addToListUniquely(sub_element.toList())
+                        elif isinstance(element, list):
+                            # We should never have deeper than a 2-dimensional list
+                            for sub_element in element:
+                                if isinstance(sub_element, Node):
+                                    queue.append(sub_element)
 
         self.is_being_listed = False
 

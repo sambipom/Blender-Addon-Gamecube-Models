@@ -241,8 +241,9 @@ class DATParser(BinaryReader):
 # This happens in 3 steps:
 # 1) Convert the node tree into an ordered array of nodes.
 #    The order of the array should match the write order of the nodes.
-#    To match the conventions of official models append nodes to the list in a breadth/depth first order
-#    and then reverse the list so the nodes towards the top of the tree are written towards the end of the file.
+#    To match the conventions of official models append nodes to the list in a
+#    breadth-first order and then reverse the list so the nodes towards the top
+#    of the tree are written towards the end of the file.
 # 2) For each node in the list, allocate an address range of the output to that node.
 #    Each node is allocated the address following the preceding node, adjusting for alignment.
 # 3) Write each node's data to the pre allocated address. For fields which are a pointer to a sub node,

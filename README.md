@@ -7,3 +7,9 @@ Compress the the contents of this repository into a .zip file and then add that 
 
 If you're interested in reverse engineering the Pokemon games on the Gamecube/Wii consoles you can find us on discord:
 www.discord.gg/xCPjjnv
+
+## Development Notes
+
+When exporting, nodes are collected in a breadth-first order. The list is then
+reversed so that child nodes are written before their parents, matching the
+conventions used by official DAT files.
