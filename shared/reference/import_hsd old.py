@@ -1054,9 +1054,9 @@ active: %.8X' % ((tev.color_op, tev.alpha_op, tev.color_bias, tev.alpha_bias,\
         #TODO: implement other custom PE stuff
         #blend mode
         #HSD_StateSetBlendMode    ((GXBlendMode) pe->type,
-		#	      (GXBlendFactor) pe->src_factor,
-		#	      (GXBlendFactor) pe->dst_factor,
-		#	      (GXLogicOp) pe->logic_op);
+        #         (GXBlendFactor) pe->src_factor,
+        #         (GXBlendFactor) pe->dst_factor,
+        #         (GXLogicOp) pe->logic_op);
         if pedesc.type == gx.GX_BM_NONE:
             pass #source data just overwrites EFB data (Opaque)
         elif pedesc.type == gx.GX_BM_BLEND:
@@ -1486,7 +1486,7 @@ def make_tev_op_comp(nodes, links, inputs, tev, iscolor):
     if iscolor:
         #per component comparisons
         #color only
-	    if tev.color_op == gx.GX_TEV_COMP_RGB8_GT or tev.color_op == gx.GX_TEV_COMP_RGB8_EQ:
+        if tev.color_op == gx.GX_TEV_COMP_RGB8_GT or tev.color_op == gx.GX_TEV_COMP_RGB8_EQ:
             separate0 = nodes.new('ShaderNodeSeparateRGB')
             separate1 = nodes.new('ShaderNodeSeparateRGB')
             links.new(inputs[0], separate0.inputs[0])
