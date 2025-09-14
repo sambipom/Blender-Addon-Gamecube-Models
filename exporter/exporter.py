@@ -62,10 +62,22 @@ class Exporter:
         material_nodes = []
         for mat in bpy.data.materials:
             mat_node = MaterialObject(address=None, blender_obj=mat)
-            # TODO: populate mat_node fields from Blender material properties
-            # mat_node.diffuse_color = mat.diffuse_color[:3]
-            # mat_node.specular_color = mat.specular_color[:3]
-            # mat_node.alpha = 1.0 if mat.blend_method == 'OPAQUE' else mat.alpha_threshold
+            # Populate fields from Blender material properties with fallbacks
+            try:
+                mat_node.diffuse_color = tuple(getattr(mat, "diffuse_color", (1.0, 1.0, 1.0))[:3])
+            except Exception:
+                mat_node.diffuse_color = (1.0, 1.0, 1.0)
+
+            try:
+                mat_node.specular_color = tuple(getattr(mat, "specular_color", (1.0, 1.0, 1.0))[:3])
+            except Exception:
+                mat_node.specular_color = (1.0, 1.0, 1.0)
+
+            blend = getattr(mat, "blend_method", "OPAQUE")
+            if blend == "OPAQUE":
+                mat_node.alpha = 1.0
+            else:
+                mat_node.alpha = getattr(mat, "alpha_threshold", 1.0)
             material_nodes.append(mat_node)
         return material_nodes
 
@@ -76,10 +88,18 @@ class Exporter:
         texture_nodes = []
         for img in bpy.data.images:
             tex_node = Texture(address=None, blender_obj=img)
-            # TODO: populate tex_node fields
-            # tex_node.path = img.filepath_from_user()
-            # tex_node.width, tex_node.height = img.size
-            # tex_node.format = Exporter._deduce_image_format(img)
+            try:
+                tex_node.path = img.filepath_from_user() if hasattr(img, "filepath_from_user") else getattr(img, "filepath", "")
+            except Exception:
+                tex_node.path = getattr(img, "filepath", "")
+
+            size = getattr(img, "size", (0, 0))
+            try:
+                tex_node.width, tex_node.height = int(size[0]), int(size[1])
+            except Exception:
+                tex_node.width, tex_node.height = 0, 0
+
+            tex_node.format = Exporter._deduce_image_format(img)
             texture_nodes.append(tex_node)
         return texture_nodes
 
@@ -91,10 +111,14 @@ class Exporter:
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
                 mesh_node = Mesh(address=None, blender_obj=obj)
-                # TODO: populate mesh_node fields
-                # mesh_node.vertices = Exporter._extract_vertices(obj)
-                # mesh_node.normals = Exporter._extract_normals(obj)
-                # mesh_node.uvs = Exporter._extract_uvs(obj)
+                try:
+                    mesh_node.vertices = Exporter._extract_vertices(obj)
+                    mesh_node.normals = Exporter._extract_normals(obj)
+                    mesh_node.uvs = Exporter._extract_uvs(obj)
+                except Exception:
+                    mesh_node.vertices = []
+                    mesh_node.normals = []
+                    mesh_node.uvs = []
                 mesh_nodes.append(mesh_node)
         return mesh_nodes
 
@@ -107,10 +131,14 @@ class Exporter:
             if obj.type == 'ARMATURE':
                 for bone in obj.data.bones:
                     joint_node = Joint(address=None, blender_obj=bone)
-                    # TODO: populate joint_node fields
-                    # joint_node.name = bone.name
-                    # joint_node.head = bone.head_local
-                    # joint_node.tail = bone.tail_local
+                    try:
+                        joint_node.name = bone.name
+                        joint_node.head = tuple(bone.head_local)
+                        joint_node.tail = tuple(bone.tail_local)
+                    except Exception:
+                        joint_node.name = getattr(bone, "name", "")
+                        joint_node.head = (0.0, 0.0, 0.0)
+                        joint_node.tail = (0.0, 0.0, 0.0)
                     joint_nodes.append(joint_node)
         return joint_nodes
 
@@ -121,9 +149,10 @@ class Exporter:
         anim_nodes = []
         for action in bpy.data.actions:
             anim_node = Animation(address=None, blender_obj=action)
-            # TODO: populate anim_node fields
-            # anim_node.name = action.name
-            # anim_node.keyframes = Exporter._extract_keyframes(action)
+            try:
+                anim_node.name = action.name
+            except Exception:
+                anim_node.name = getattr(action, "name", "")
             anim_nodes.append(anim_node)
         return anim_nodes
 
