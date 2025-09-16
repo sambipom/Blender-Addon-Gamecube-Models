@@ -1,6 +1,8 @@
 try:
     from ..shared.IO import DAT_io, ModelBuilder, DATBuilder
+    from ..shared.Nodes.Classes.Material.Material import Material
     from ..shared.Nodes.Classes.Material.MaterialObject import MaterialObject
+    from ..shared.Nodes.Classes.Colors.RGBAColor import RGBAColor
     from ..shared.Nodes.Classes.Texture.Texture import Texture
     from ..shared.Nodes.Classes.Mesh.Mesh import Mesh
     from ..shared.Nodes.Classes.Joints.Joint import Joint
@@ -8,7 +10,9 @@ try:
     from ..shared.Nodes.Classes.RootNodes.SectionInfo import SectionInfo
 except ImportError:
     from shared.IO import DAT_io, ModelBuilder, DATBuilder
+    from shared.Nodes.Classes.Material.Material import Material
     from shared.Nodes.Classes.Material.MaterialObject import MaterialObject
+    from shared.Nodes.Classes.Colors.RGBAColor import RGBAColor
     from shared.Nodes.Classes.Texture.Texture import Texture
     from shared.Nodes.Classes.Mesh.Mesh import Mesh
     from shared.Nodes.Classes.Joints.Joint import Joint
@@ -60,24 +64,35 @@ class Exporter:
     def _collect_material_nodes():
         """Convert Blender materials to MaterialNode objects."""
         material_nodes = []
-        for mat in bpy.data.materials:
+        data = getattr(bpy, "data", None)
+        materials = getattr(data, "materials", []) if data is not None else []
+
+        for mat in materials or []:
             mat_node = MaterialObject(address=None, blender_obj=mat)
-            # Populate fields from Blender material properties with fallbacks
-            try:
-                mat_node.diffuse_color = tuple(getattr(mat, "diffuse_color", (1.0, 1.0, 1.0))[:3])
-            except Exception:
-                mat_node.diffuse_color = (1.0, 1.0, 1.0)
 
-            try:
-                mat_node.specular_color = tuple(getattr(mat, "specular_color", (1.0, 1.0, 1.0))[:3])
-            except Exception:
-                mat_node.specular_color = (1.0, 1.0, 1.0)
+            class_type_value = getattr(mat, "gc_class_type", None)
+            if class_type_value is None:
+                class_type_value = getattr(mat, "name", "")
+            mat_node.class_type = str(class_type_value) if class_type_value is not None else ""
 
-            blend = getattr(mat, "blend_method", "OPAQUE")
-            if blend == "OPAQUE":
-                mat_node.alpha = 1.0
-            else:
-                mat_node.alpha = getattr(mat, "alpha_threshold", 1.0)
+            render_mode_value = getattr(mat, "gc_render_mode", 0)
+            try:
+                mat_node.render_mode = int(render_mode_value)
+            except (TypeError, ValueError):
+                mat_node.render_mode = 0
+
+            diffuse_rgb = Exporter._color_components(mat, "diffuse_color", (1.0, 1.0, 1.0))
+            specular_rgb = Exporter._color_components(mat, "specular_color", (1.0, 1.0, 1.0))
+            alpha_value = Exporter._material_alpha(mat)
+
+            mat_node.material = Exporter._build_material_struct(
+                mat, diffuse_rgb, specular_rgb, alpha_value
+            )
+
+            mat_node.texture = None
+            mat_node.render_data = None
+            mat_node.pixel_engine_data = None
+
             material_nodes.append(mat_node)
         return material_nodes
 
@@ -192,3 +207,87 @@ class Exporter:
         if obj.data.uv_layers.active:
             return [loop.uv[:] for loop in obj.data.uv_layers.active.data]
         return []
+
+    @staticmethod
+    def _color_components(material, attribute, fallback):
+        values = getattr(material, attribute, fallback)
+        components = []
+        for index in range(3):
+            try:
+                component = float(values[index])
+            except (TypeError, ValueError, IndexError):
+                component = fallback[index]
+            components.append(component)
+        return tuple(components)
+
+    @staticmethod
+    def _material_alpha(material):
+        blend_method = getattr(material, "blend_method", "OPAQUE")
+        alpha_source = None
+
+        if blend_method == "OPAQUE":
+            alpha_source = getattr(material, "alpha", None)
+            if alpha_source is None:
+                try:
+                    alpha_source = float(getattr(material, "diffuse_color")[3])
+                except (TypeError, ValueError, IndexError, AttributeError):
+                    alpha_source = None
+            if alpha_source is None:
+                alpha_source = 1.0
+        else:
+            alpha_source = getattr(material, "alpha_threshold", None)
+            if alpha_source is None:
+                alpha_source = getattr(material, "alpha", None)
+            if alpha_source is None:
+                alpha_source = 1.0
+
+        return Exporter._clamp_float(alpha_source)
+
+    @staticmethod
+    def _build_material_struct(material, diffuse_rgb, specular_rgb, alpha_value):
+        material_struct = Material(address=None, blender_obj=material)
+        material_struct.ambient = Exporter._color_to_rgba_node(diffuse_rgb, 1.0)
+        material_struct.diffuse = Exporter._color_to_rgba_node(diffuse_rgb, alpha_value)
+        material_struct.specular = Exporter._color_to_rgba_node(specular_rgb, 1.0)
+        material_struct.alpha = Exporter._clamp_float(alpha_value)
+
+        shininess_source = getattr(material, "specular_intensity", 0.0)
+        try:
+            material_struct.shininess = float(shininess_source)
+        except (TypeError, ValueError):
+            material_struct.shininess = 0.0
+
+        return material_struct
+
+    @staticmethod
+    def _color_to_rgba_node(rgb_values, alpha_value):
+        rgba_node = RGBAColor(address=None, blender_obj=None)
+        components = list(rgb_values[:3])
+        while len(components) < 3:
+            components.append(1.0)
+        rgba_floats = components + [alpha_value]
+        rgba_bytes = [Exporter._color_component_to_byte(component) for component in rgba_floats]
+        rgba_node.red, rgba_node.green, rgba_node.blue, rgba_node.alpha = rgba_bytes
+        return rgba_node
+
+    @staticmethod
+    def _color_component_to_byte(value):
+        try:
+            component = float(value)
+        except (TypeError, ValueError):
+            component = 0.0
+
+        if component > 1.0:
+            component = max(0.0, min(component, 255.0))
+            return int(round(component))
+
+        component = max(0.0, min(component, 1.0))
+        return int(round(component * 255))
+
+    @staticmethod
+    def _clamp_float(value, minimum=0.0, maximum=1.0):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return minimum
+        return max(minimum, min(maximum, numeric))
