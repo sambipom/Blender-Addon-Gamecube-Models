@@ -411,25 +411,48 @@ class DATBuilder(BinaryWriter):
             field_type = markUpFieldType(field[1])
             field_value = getattr(node, field_name)
             field_length = get_type_length(field_type)
+            raw_field_type = field_type
+            while isBracketedType(raw_field_type):
+                raw_field_type = getBracketedSubType(raw_field_type)
 
             # Dump values that are pointed to first and replace them with their pointers
-            if isPointerType(field_type):
-                sub_type = getPointerSubType(field_type)
-                pointer = self.write(field_value, sub_type)
+            if isPointerType(raw_field_type) and field[1] != 'string':
+                sub_type = getPointerSubType(raw_field_type)
+                if field_value is None:
+                    pointer = 0
+                else:
+                    pointer = self.write(field_value, sub_type)
                 setattr(node, field_name, pointer)
 
-            elif isNodeClassType(field_type):
-                pointer = self.write(field_value, field_type)
-                field_value.address = pointer
+            elif isNodeClassType(raw_field_type):
+                if not field_value:
+                    pointer = 0
+                elif hasattr(field_value, 'address'):
+                    pointer = self.write(field_value, raw_field_type)
+                    field_value.address = pointer
+                else:
+                    pointer = field_value
                 setattr(node, field_name, pointer)
 
-            elif isBoundedArrayType(field_type) or isUnboundedArrayType(field_type):
-                sub_type = getArraySubType(field_type)
-                if isPointerType(sub_type) or isNodeClassType(sub_type):
+            elif isBoundedArrayType(raw_field_type) or isUnboundedArrayType(raw_field_type):
+                sub_type = getArraySubType(raw_field_type)
+                raw_sub_type = sub_type
+                while isBracketedType(raw_sub_type):
+                    raw_sub_type = getBracketedSubType(raw_sub_type)
+
+                if isPointerType(raw_sub_type) or isNodeClassType(raw_sub_type):
+                    if field_value is None:
+                        setattr(node, field_name, field_value)
+                        continue
+
                     pointers_array = []
                     for value in field_value:
+                        if value is None:
+                            pointers_array.append(value)
+                            continue
+
                         pointer = self.write(value, sub_type)
-                        if isNodeClassType(sub_type):
+                        if isNodeClassType(raw_sub_type) and hasattr(value, 'address'):
                             value.address = pointer
                         pointers_array.append(value)
 
