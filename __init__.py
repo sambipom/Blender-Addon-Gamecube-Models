@@ -19,8 +19,18 @@ import bpy
 import os
 from bpy_extras.io_utils import ImportHelper, ExportHelper, axis_conversion
 
-from .exporter import exporter
-from .importer import importer
+IN_BLENDER = hasattr(bpy, "app")
+
+if IN_BLENDER:
+    if __package__:
+        from .exporter import exporter
+        from .importer import importer
+    else:  # pragma: no cover - fallback for running outside Blender package context
+        from exporter import exporter  # type: ignore
+        from importer import importer  # type: ignore
+else:  # pragma: no cover - skip heavy imports when running tests without Blender
+    exporter = None  # type: ignore
+    importer = None  # type: ignore
 
 
 # This class declares global properties which blender uses to add toggles and fields to the file open browser
