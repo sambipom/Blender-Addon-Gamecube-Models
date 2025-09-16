@@ -17,6 +17,15 @@ class MaterialObject(Node):
         ('pixel_engine_data', 'PixelEngine'),
     ]
 
+    def __init__(self, address, blender_obj):
+        super().__init__(address, blender_obj)
+        self.class_type = ""
+        self.render_mode = 0
+        self.texture = None
+        self.material = None
+        self.render_data = None
+        self.pixel_engine_data = None
+
     def loadFromBinary(self, parser):
         super().loadFromBinary(parser)
         self.id = self.address
