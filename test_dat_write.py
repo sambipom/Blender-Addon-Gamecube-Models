@@ -1,4 +1,13 @@
+import pytest
+
 import bpy
+
+# The write round-trip test requires Blender's Python API. Skip it when the
+# stubs from the unit test environment are in use so the rest of the suite can
+# run without Blender installed.
+if not hasattr(bpy, "ops"):
+    pytest.skip("Blender context not available for integration test", allow_module_level=True)
+
 from shared.IO.DAT_io import DATParser, DATBuilder
 from shared.IO.ModelBuilder import ModelBuilder
 
