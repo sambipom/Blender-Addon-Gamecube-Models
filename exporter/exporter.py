@@ -101,8 +101,13 @@ class Exporter:
     def _collect_texture_nodes():
         """Convert Blender textures/images to TextureNode objects."""
         texture_nodes = []
-        for img in bpy.data.images:
+        data = getattr(bpy, "data", None)
+        images = getattr(data, "images", []) if data is not None else []
+
+        for index, img in enumerate(images or []):
             tex_node = Texture(address=None, blender_obj=img)
+            tex_node.name = getattr(img, "name", f"texture_{index}") or f"texture_{index}"
+            tex_node.texture_id = index
             try:
                 tex_node.path = img.filepath_from_user() if hasattr(img, "filepath_from_user") else getattr(img, "filepath", "")
             except Exception:
@@ -116,6 +121,9 @@ class Exporter:
 
             tex_node.format = Exporter._deduce_image_format(img)
             texture_nodes.append(tex_node)
+
+        for idx in range(len(texture_nodes) - 1):
+            texture_nodes[idx].next = texture_nodes[idx + 1]
         return texture_nodes
 
     # ---------- MESHES ----------
