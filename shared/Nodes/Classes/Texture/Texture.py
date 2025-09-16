@@ -24,6 +24,27 @@ class Texture(Node):
         ('tev', 'TextureTEV'),
     ]
 
+    def __init__(self, address, blender_obj):
+        super().__init__(address, blender_obj)
+        self.name = ""
+        self.next = None
+        self.texture_id = 0
+        self.source = 0
+        self.rotation = (0.0, 0.0, 0.0)
+        self.scale = (1.0, 1.0, 1.0)
+        self.translation = (0.0, 0.0, 0.0)
+        self.wrap_s = 0
+        self.wrap_t = 0
+        self.repeat_s = 0
+        self.repeat_t = 0
+        self.flags = 0
+        self.blending = 0.0
+        self.mag_filter = 0
+        self.image = None
+        self.palette = None
+        self.lod = None
+        self.tev = None
+
     def loadFromBinary(self, parser):
         super().loadFromBinary(parser)
         self.id = self.address
