@@ -420,8 +420,12 @@ class DATBuilder(BinaryWriter):
                 sub_type = getPointerSubType(raw_field_type)
                 if field_value is None:
                     pointer = 0
+                elif isinstance(field_value, int):
+                    pointer = field_value
                 else:
                     pointer = self.write(field_value, sub_type)
+                    if isNodeClassType(sub_type) and hasattr(field_value, 'address'):
+                        field_value.address = pointer
                 setattr(node, field_name, pointer)
 
             elif isNodeClassType(raw_field_type):
@@ -448,13 +452,16 @@ class DATBuilder(BinaryWriter):
                     pointers_array = []
                     for value in field_value:
                         if value is None:
-                            pointers_array.append(value)
+                            pointers_array.append(0)
                             continue
 
-                        pointer = self.write(value, sub_type)
-                        if isNodeClassType(raw_sub_type) and hasattr(value, 'address'):
-                            value.address = pointer
-                        pointers_array.append(value)
+                        if isinstance(value, int):
+                            pointer = value
+                        else:
+                            pointer = self.write(value, sub_type)
+                            if isNodeClassType(raw_sub_type) and hasattr(value, 'address'):
+                                value.address = pointer
+                        pointers_array.append(pointer)
 
                     setattr(node, field_name, pointers_array)
 
