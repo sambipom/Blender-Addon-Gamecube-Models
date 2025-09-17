@@ -32,27 +32,41 @@ except Exception:  # pragma: no cover
 class Mesh(Node):
     """Represents a mesh node in the shared schema."""
 
+    # RESTORED: real schema fields (your Node base likely relies on these)
     fields = [
-        # Placeholder for the node's schema definition.
+        ('name', 'string'),
+        ('next', 'Mesh'),
+        ('mobject', 'MaterialObject'),
+        ('pobject', 'PObject'),
     ]
 
     def __init__(self, address: Optional[int] = None, blender_obj: Any = None, **kwargs: Any) -> None:
         super().__init__(address=address, blender_obj=blender_obj, **kwargs)
+
+        # Track whether we synthesized a temporary (object-id) name,
+        # so we can replace it later once a deterministic address is known.
+        self._temp_name_generated: bool = False
+
         # Ensure a stable name for downstream builders/serializers
-        if not hasattr(self, "name") or not self.name:
-            if blender_obj is not None and hasattr(blender_obj, "name"):
+        if not hasattr(self, "name") or not getattr(self, "name", None):
+            if blender_obj is not None and hasattr(blender_obj, "name") and blender_obj.name:
                 self.name = blender_obj.name
+            elif isinstance(address, int):
+                self.name = f"mesh_{address:08X}"
             else:
-                base = f"{address:08X}" if isinstance(address, int) else f"{id(self):x}"
-                self.name = f"mesh_{base}"
+                # Temporary (non-deterministic) fallback; will be replaced after load
+                self.name = f"mesh_{id(self):x}"
+                self._temp_name_generated = True
 
     def loadFromBinary(self, parser: Any) -> None:
         super().loadFromBinary(parser)
         self.id = self.address
-        # Guarantee a name even when coming from binary
-        if not hasattr(self, "name") or not self.name:
-            base = f"{self.id:08X}" if isinstance(getattr(self, "id", None), int) else f"{id(self):x}"
-            self.name = f"mesh_{base}"
+
+        # If we previously assigned a temporary (object-id) name OR name is missing,
+        # and we now have a deterministic numeric address, regenerate the name.
+        if (getattr(self, "_temp_name_generated", False) or not getattr(self, "name", None)) and isinstance(self.id, int):
+            self.name = f"mesh_{self.id:08X}"
+            self._temp_name_generated = False
 
     def build(self, builder: Any) -> List[Any]:
         """Build Blender objects for the mesh using the provided builder."""
