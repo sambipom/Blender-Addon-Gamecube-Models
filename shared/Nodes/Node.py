@@ -1,5 +1,27 @@
-from .NodeTypes import get_type_length
 from collections import deque
+
+from .NodeTypes import get_type_length, markUpFieldType
+from ..Constants.PrimitiveTypes import is_primitive_type
+from ..Constants.RecursiveTypes import (
+    getArraySubType,
+    getArrayTypeBound,
+    getBracketedSubType,
+    getPointerSubType,
+    getSubType,
+    isBoundedArrayType,
+    isBracketedType,
+    isPointerType,
+    isUnboundedArrayType,
+)
+
+
+def _identity_matrix():
+    return [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
 
 
 # Abstract node class
@@ -38,6 +60,137 @@ class Node(object):
         self.is_being_printed = False
         self.is_being_listed = False
         self.is_prepared_for_build = False
+
+        self._initialize_field_defaults()
+
+    def _initialize_field_defaults(self):
+        for field_info in getattr(self, 'fields', []):
+            field_name, field_type = field_info[0], field_info[1]
+            if hasattr(self, field_name):
+                continue
+            default_value = self._default_value_for_field(field_type)
+            setattr(self, field_name, default_value)
+
+    @classmethod
+    def _default_value_for_field(cls, field_type):
+        if not field_type:
+            return None
+
+        clean_type = field_type.replace(' ', '')
+
+        if cls._type_has_array(clean_type):
+            element_type = cls._array_element_type(clean_type)
+            bound = cls._array_bound(clean_type)
+            if bound is None:
+                return []
+            return [cls._default_value_for_field(element_type) for _ in range(bound)]
+
+        canonical_type = markUpFieldType(field_type)
+        unwrapped_type = cls._strip_brackets(canonical_type)
+
+        if isPointerType(unwrapped_type):
+            pointer_target = getPointerSubType(unwrapped_type)
+
+            if cls._canonical_type_is_array(pointer_target):
+                array_sub_type = getArraySubType(pointer_target)
+                bound = getArrayTypeBound(pointer_target)
+                if bound is None:
+                    return []
+                return [cls._default_value_for_field(array_sub_type) for _ in range(bound)]
+
+            base_type = getSubType(pointer_target)
+            if base_type == 'string':
+                return ""
+            if base_type == 'matrix':
+                return _identity_matrix()
+            return None
+
+        if cls._canonical_type_is_array(unwrapped_type):
+            array_sub_type = getArraySubType(unwrapped_type)
+            bound = getArrayTypeBound(unwrapped_type)
+            if bound is None:
+                return []
+            return [cls._default_value_for_field(array_sub_type) for _ in range(bound)]
+
+        base_type = getSubType(unwrapped_type)
+
+        if is_primitive_type(base_type):
+            return cls._primitive_default(base_type)
+
+        if cls._field_is_embedded(clean_type):
+            return cls._instantiate_node_class(base_type)
+
+        return None
+
+    @staticmethod
+    def _strip_brackets(field_type):
+        stripped = field_type
+        while isBracketedType(stripped):
+            stripped = getBracketedSubType(stripped)
+        return stripped
+
+    @staticmethod
+    def _type_has_array(type_string):
+        return ('[' in type_string) and (']' in type_string)
+
+    @staticmethod
+    def _canonical_type_is_array(type_string):
+        return isBoundedArrayType(type_string) or isUnboundedArrayType(type_string)
+
+    @staticmethod
+    def _array_bound(type_string):
+        start = type_string.find('[')
+        end = type_string.find(']', start + 1)
+        if start == -1 or end == -1:
+            return None
+        bound_string = type_string[start + 1:end]
+        if bound_string.isdigit():
+            return int(bound_string)
+        return None
+
+    @staticmethod
+    def _array_element_type(type_string):
+        start = type_string.find('[')
+        if start == -1:
+            return type_string
+        end = type_string.find(']', start + 1)
+        if end == -1:
+            end = len(type_string)
+        return type_string[:start] + type_string[end + 1:]
+
+    @staticmethod
+    def _primitive_default(primitive_type):
+        if primitive_type == 'string':
+            return ""
+        if primitive_type in {'float', 'double'}:
+            return 0.0
+        if primitive_type == 'vec3':
+            return (0.0, 0.0, 0.0)
+        if primitive_type == 'matrix':
+            return _identity_matrix()
+        if primitive_type == 'void':
+            return None
+        return 0
+
+    @staticmethod
+    def _field_is_embedded(type_string):
+        return '@' in type_string
+
+    @staticmethod
+    def _instantiate_node_class(class_name):
+        try:
+            from ..ClassLookup import get_class_from_name
+            class_reference = get_class_from_name(class_name)
+        except Exception:
+            class_reference = None
+
+        if class_reference is None:
+            return None
+
+        try:
+            return class_reference(None, None)
+        except Exception:
+            return None
 
     # Parse struct from binary file.
     # Use the parser to read the binary for the fields and then do any conversions or calculations
